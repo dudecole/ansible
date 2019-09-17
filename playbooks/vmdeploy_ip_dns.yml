@@ -1,0 +1,46 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+# ansible-playbook playbooks/nutanix_vm_provision.yml --ask-vault-pass or --vault-password-file -e "env=test|prod request_number="
+  vars_files:
+  - ../group_vars/{{env}}-vault.yml
+  - ../group_vars/mskey-vault.yml
+  - ../group_vars/{{env}}-vars.yml
+
+  vars:
+    snow_ritm: "{{ request_number }}" # pass as --extra-var
+
+
+  tasks:
+  - name: Check ticket stage first
+    import_role:
+      name: snow_get_ritm
+
+  - name: Check to ensure the IP/DNS record does not already exist
+    import_role:
+      name: infoblox_check
+    when: ritm_stage == 'IP Address Assignment'
+
+  - name: Assign IP and record progress in ServiceNow
+    block:
+    - import_role:
+        name: infoblox_bu_network
+    - import_role:
+        name: snow_set_ritm_vars # update ticket with IP and VLAN
+    - import_role:
+        name: snow_validate_vars # verify snow vars have been updated/saved
+    - import_role:
+        name: snow_close_ip # closing IP Address Assignment stage
+
+    rescue:
+    - debug:
+        msg: "IP Assignation failed. Rolling back"
+    - name: Rollback IP
+      import_role:
+        name: infoblox_decommission
+    - fail:
+        msg: "Ensure that the whole task fails so that failure is recorded"
+    when: ritm_stage == 'IP Address Assignment'
+

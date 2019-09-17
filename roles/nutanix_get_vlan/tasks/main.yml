@@ -1,0 +1,90 @@
+---
+- name: assigning vlan variable
+  set_fact:
+    vlan_split: "{{ vlan.split('_') }}"
+  when:
+  - '"_" in vlan'
+  - vlan is defined
+
+- name: assigning vlan index 1 to vlan
+  set_fact:
+    vlan_id: "{{ vlan_split[1] }}"
+  when:
+  - '"_" in vlan'
+  - vlan is defined
+
+- name: assigning vlan to vlan variable
+  set_fact:
+    vlan_id: "{{ vlan }}"
+  when:
+  - '"_" not in vlan'
+  - vlan is defined
+
+- name: debugging vlan variable
+  debug:
+    msg:
+    - "{{ vlan_id }}"
+
+
+- name: playbook to get vlans
+  block:
+  - mod_nutanix:
+      user: "{{ nutanix_user }}"
+      password: "{{ nutanix_pw }}"
+      element_addr: "{{ cluster_ip }}"
+      central_addr: "{{ central_addr }}"
+      port: "{{ nutanix_port }}"
+      vlan: "{{ vlan_id }}"
+      action: get_vlan
+    register: result
+
+  rescue:
+  - debug:
+      msg: "{{ result['msg'] }} --- VLAN {{ vlan_id }} NOT FOUND - ADDING NOW"
+
+  - mod_nutanix:
+      action: add_vlan
+      element_addr: "{{ cluster_ip }}"
+      vlan: "{{ vlan_id }}" # this is only the number part of the vlan (string type) '1182'
+      user: "{{ nutanix_user }}"
+      password: "{{ nutanix_pw }}"
+      port: "{{ nutanix_port }}"
+    register: result
+
+  - debug:
+      msg:
+      - "inside block statement result: {{ result }}"
+      - "pausing for 3 seconds for newly created VLAN"
+
+  - pause:
+      seconds: 3
+
+  # retreive all the variables of the newly created vlan
+  - mod_nutanix:
+      user: "{{ nutanix_user }}"
+      password: "{{ nutanix_pw }}"
+      element_addr: "{{ cluster_ip }}"
+      port: "{{ nutanix_port }}"
+      vlan: "{{ vlan_id }}"
+      action: get_vlan
+    register: result
+
+- name: debug result variable - outside of block
+  debug:
+    msg:
+    - "result: {{ result }}"
+
+
+- name: assigning variables
+  set_fact:
+    vlan_uuid: "{{ result.meta['network_uuid'] }}"
+    vlan_name: "{{ result.meta['vlan_name'] }}"
+    vlan_id: "{{ result.meta['vlan_id'] }}"
+
+- name: debugging cluster_returned
+  debug:
+    msg:
+    - "vlan_uuid: {{ vlan_uuid }}"
+    - "vlan_name: {{ vlan_name }}"
+    - "vlan_id: {{ vlan_id }}"
+

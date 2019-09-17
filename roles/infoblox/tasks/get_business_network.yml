@@ -1,0 +1,72 @@
+---
+# this requires the following variables:
+# this searches infoblox extensible attributes for a
+# business unit network to use.  THe following
+# variables help determine where to land the VM
+# 1. 'fqdn'
+# 2. 'infoblox_host' - in the vars file
+# 3. 'infoblox_user' - in the vault file
+# 4. 'infoblox_pw' - in the vault file
+# 5. 'vm_env' - equivalent to vm_env
+# 6. 'net_zone' - equivalent to net_zone - Internal, DMZ
+# 7. 'datacenter'
+# 8. 'business_unit'
+
+#validating can be used if cases are different between servicenow and infoblox
+- name: assign vm_env to vm_env - can be 'Prod' or 'Non Prod'
+  set_fact:
+    vm_env: "Non Prod"
+  when: vm_env == 'Test' or vm_env == 'Acceptance' or vm_env == 'Development'
+
+- name: assign vm_env value to vm_env if equals Prod
+  set_fact:
+    vm_env: "Prod"
+  when: vm_env == 'Production'
+
+- name: Making datacenter variable uppercase
+  set_fact:
+    datacenter: "{{ datacenter | upper }}"
+
+- name: set env=test variables
+  set_fact:
+    fqdn: "{{ vm_name }}.infobloxtest.com"
+    business_unit: "My Business Unit"
+    net_zone: "Internal"
+    datacenter: "datacenter"
+  when: env == 'test' #and auto is undefined # and vm_env == 'Non Prod'
+
+- name: debug ib env variable
+  debug:
+    msg:
+    - "fqdn: {{ fqdn }}"
+    - "environment: {{ vm_env }}"
+    - "vrf: {{ business_unit }}"
+    - "network_zone: {{ net_zone }}"
+    - "site: {{ datacenter }}"
+    - "ib_host: {{ infoblox_host }}"
+    - "infoblox_user: {{ infoblox_user }}"
+    - "infoblox_view: {{ infoblox_view }}"
+    - "network_ver: {{ network_ver }}"
+    - "business_unit: {{ business_unit }}"
+
+- name: task to get network
+  mod_infoblox:
+    action: get_network
+    environment: "{{ vm_env }}"
+    vrf: "{{ business_unit }}"
+    network_zone: "{{ net_zone }}"
+    site: "{{ datacenter }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+    version: "{{ network_ver }}"
+  no_log: true
+  register: result
+
+- name: debugging the variable 'result'
+  debug:
+    msg: "here is the result variable: {{ result.meta}}"
+
+- name: setting the subnet variable
+  set_fact:
+    network: "{{ result.meta }}"

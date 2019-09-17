@@ -1,0 +1,20 @@
+
+- name: debug variables first
+  debug:
+    msg:
+    - "solar_host: {{ solar_hosts[item] }}"
+    - "solar_user: {{ solar_user }}"
+    - "ip: {{ ip_address |default('') }}"
+  with_items: "{{ solar_hosts }}"
+
+- name: task to delete solarwinds node
+  mod_solarwinds:
+    action: delete_node
+    solar_host: "{{ solar_hosts[item] }}"  #"{{ solar_host }}"
+    solar_user: "{{ solar_user }}"
+    solar_pw: "{{ solar_pw }}"
+    ip: "{{ ip_address |default('') }}"
+  register: result
+  with_items: "{{ solar_hosts }}"
+  failed_when: false
+

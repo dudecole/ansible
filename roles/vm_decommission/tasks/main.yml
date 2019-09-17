@@ -1,0 +1,22 @@
+---
+
+- name: debugging variables
+  debug:
+    msg:
+    - "central_addr: {{ central_addr }}"
+    - "vm_name: {{ vm_name }}"
+
+- name: Check to see if VM exists in prism central
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    vm: "{{ vm_name }}"
+    action: delete_vm
+  register: result
+
+- name: debugging result
+  debug:
+    msg:
+    - "here is the result {{ result }}"

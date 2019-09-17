@@ -1,0 +1,41 @@
+---
+
+- name: debug variables before running
+  debug:
+    msg:
+    - "client_id: {{ client_id }}"
+    - "commserve: {{ commserve }}"
+
+- name: test out the mod_commvault.py file
+  mod_commvault:
+    action: search_client_id
+    client_id: "{{ client_id }}"
+    username: "{{ commvault_user }}"
+    password: "{{ commvault_pass }}"
+    commserve: "{{ commserve }}"
+  register: search_results
+
+- name:
+  debug:
+    msg:
+    - "search_results: {{ search_results }}"
+
+- name: setting facts from search_results
+  set_fact:
+    client_name: "{{ search_results.meta.client_name }}"
+    commcell_name: "{{ search_results.meta.commcell_name}}"
+    client_guid: "{{ search_results.meta.client_guid }}"
+    client_host_name: "{{ search_results.meta.host_name }}"
+    client_id: "{{ search_results.meta.client_id }}"
+    client_display_name: "{{ search_results.meta.client_display_name }}"
+
+- name:
+  debug:
+    msg:
+    - "client_name: {{ client_name }}"
+    - "commcell_name: {{ commcell_name }}"
+    - "client_guid: {{ client_guid }}"
+    - "client_host_name: {{ client_host_name }}"
+    - "client_id: {{ client_id }}"
+    - "client_display_name: {{ client_display_name }}"
+

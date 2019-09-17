@@ -1,0 +1,34 @@
+
+- name: set successful_run value
+  set_fact:
+    successful_run: false
+
+- name: debug variables first
+  debug:
+    msg:
+    - "solar_hosts: {{ solar_hosts[item] }}"
+    - "solar_user: {{ solar_user }}"
+    - "ip: {{ ip }}"
+  with_items: "{{ solar_hosts }}"
+
+## import playbooks - with_items
+#- include_tasks: search-node.yml
+#  with_items: "{{ solar_hosts }}"
+
+- name: task to get solarwinds node
+  mod_solarwinds:
+    action: get_node
+    solar_host: "{{ solar_hosts[item] }}"
+    solar_user: "{{ solar_user }}"
+    solar_pw: "{{ solar_pw }}"
+    ip: "{{ ip_address }}"
+  register: result
+#  ignore_errors: True
+  failed_when: false
+  with_items: "{{ solar_hosts }}"
+
+- name: debug the return of node search
+  debug:
+    msg:
+    - "result: {{ item.meta.results }}"
+  with_items: "{{ result.results }}"

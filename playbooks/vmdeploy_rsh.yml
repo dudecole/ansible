@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+# ansible-playbook playbooks/nutanix_vm_provision.yml --ask-vault-pass or --vault-password-file -e "env=test|prod request_number="
+  vars_files:
+  - ../group_vars/{{env}}-vault.yml
+  - ../group_vars/mskey-vault.yml
+  - ../group_vars/{{env}}-vars.yml
+
+  vars:
+    snow_ritm: "{{ request_number }}" # pass as --extra-var
+
+  tasks:
+  - name: Check ticket stage first
+    import_role:
+      name: snow_get_ritm
+
+  - name: Close RSH
+    block:
+    - import_role:
+        name: snow_close_osprep
+    when: ritm_stage == 'RDP_SSH Access'

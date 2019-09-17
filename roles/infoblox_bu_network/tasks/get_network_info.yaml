@@ -1,0 +1,135 @@
+---
+#validating can be used if cases are different between servicenow and infoblox
+- name: assign vm_env to ib_env - can be 'Prod' or 'Non Prod'
+  set_fact:
+    ib_env: "Non Prod"
+  when: vm_env == 'Test' or vm_env == 'Acceptance' or vm_env == 'Development'
+
+- name: assign vm_env value to ib_env if equals Prod
+  set_fact:
+    ib_env: "Prod"
+  when: vm_env == 'Production'
+
+- name: set env=test variables
+  set_fact:
+    fqdn: "{{ vm_name }}.infobloxtest.com"
+    net_zone: "Internal"
+    datacenter: "EDC"
+  when: env == 'test'
+
+
+- name: debug ib env variable
+  debug:
+    msg:
+    - "ib_env: {{ ib_env }}"
+    - "fqdn: {{ fqdn }}"
+    - "environment: {{ vm_env }}"
+    - "vrf: {{ business_unit }}"
+    - "network_zone: {{ net_zone }}"
+    - "site: {{ datacenter }}"
+    - "ib_host: {{ infoblox_host }}"
+    - "infoblox_user: {{ infoblox_user }}"
+    - "infoblox_view: {{ infoblox_view }}"
+    - "network_ver: {{ network_ver }}"
+    - "business_unit: {{ business_unit }}"
+
+- name: task to get network
+  mod_infoblox:
+    action: get_network
+    environment: "{{ ib_env }}"
+    vrf: "{{ business_unit }}"
+    network_zone: "{{ net_zone }}"
+    site: "{{ datacenter }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+    version: "{{ network_ver }}"
+  register: result
+
+- name: debugging the variable 'result'
+  debug:
+    msg: "here is the result variable: {{ result.meta}}"
+
+- name: setting the subnet variable
+  set_fact:
+    network: "{{ result.meta }}"
+
+- name: task to get_vlan in module
+  mod_infoblox:
+    action: get_vlan
+    subnet: "{{ network }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: result2
+
+- name: task to set VLAN variable
+  set_fact:
+    vlan: "{{ result2.meta}}"
+
+- name: debugging variables
+  debug:
+    msg:
+    - "here is the vlan: {{ vlan }}"
+    - "here is the fqdn: {{ fqdn }}"
+    - "Network: {{ network }}"
+
+- name: set last_octet_removed
+  set_fact:
+    last_octet_removed: "{{ network.split('.')[:3] | join('.') }}"
+    prefix: "{{ network.split('/')[1] }}"
+
+- name: set gateway_search_string - 'gw-xx.xx.xxx.0'
+  set_fact:
+    gateway_search_string: "gw-{{ last_octet_removed }}.0"
+
+- name: debug variables
+  debug:
+    msg:
+    - "last_octet_removed: {{ last_octet_removed }}"
+    - "gateway_search_string: {{ gateway_search_string }}"
+    - "prefix: {{ prefix }}"
+
+- name: lookup Host record for - gateway_search_string
+  set_fact:
+    gateway_host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': gateway_search_string }) }}"
+
+- name: fail when '_ref' not in gateway_host_record
+  fail:
+    msg: "NO GATEWAY RECORD FOUND"
+  when: '"_ref" | string not in gateway_host_record'
+
+- name: debug gateway address
+  debug:
+    msg:
+    - "gateway_host_record: {{ gateway_host_record }}"
+
+- name: set gateway address
+  set_fact:
+    gateway: "{{ gateway_host_record['ipv4addrs'][0]['ipv4addr'] }}"
+
+- name: debug gateway address
+  debug:
+    msg:
+    - "gateway: {{ gateway }}"
+
+- name: task to get network
+  mod_infoblox:
+    action: get_netmask
+    subnet: "{{ network }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: netmask_result
+
+- name: set fact on the network with prefix
+  set_fact:
+    netmask: "{{ netmask_result.meta }}"
+
+- name: debugging the variable 'result'
+  debug:
+    msg:
+    - "netmask: {{ netmask }}"

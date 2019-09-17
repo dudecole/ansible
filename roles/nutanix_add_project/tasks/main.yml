@@ -1,0 +1,57 @@
+# 1. search for project first
+# 2. if project doesn't exist then
+#    create project based on the business-unit
+
+- name: debug business_unit
+  debug:
+    msg: "business_unit:  {{ business_unit }}"
+
+- name: task to check if project exists
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    project: "{{ business_unit }}"
+    action: get_project
+  register: proj_result
+
+- name: debug get_project task
+  debug:
+    msg: "Proj_result: {{ proj_result }}"
+
+- name: set fact of total_matches
+  set_fact:
+    total_matches: '{{ proj_result.meta.metadata.total_matches }}'
+
+- name: debug total_matches
+  debug:
+    msg: "total_matches: {{ total_matches }}"
+
+- name: task to create project if doesn't exist
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    project: "{{ business_unit }}"
+    action: add_project
+  register: create_result
+  when: total_matches == '0'
+
+- name: debug add_project task
+  debug:
+    msg: "create_result: {{ create_result }}"
+  when: total_matches == '0'
+
+- name: set fact project_uuid of new project
+  set_fact:
+    project_uuid: '{{ create_result.meta.metadata.uuid }}'
+  when: total_matches == '0'
+
+- name: debug project_uuid variable
+  debug:
+    msg: "project_uuid: {{ project_uuid }}"
+  when: total_matches == '0'
+
+

@@ -1,0 +1,58 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - "~/storage-ansible/group_vars/{{env}}-vault.yml"
+  - "~/storage-ansible/group_vars/{{env}}-vars.yml"
+
+  vars:
+    ansible_user: "{{ cluster_user }}"
+    ansible_password: "{{ cluster_pw }}"
+    vserver_domain: ""
+    volume_name: "djtest"
+    volume_size: 1 #"1gb"
+    size_unit: 'gb'
+    business_unit: "3002"
+    netapp_env: "D"
+    datacenter: "wdc"
+    cluster_ip: "{{ cluster[datacenter]['ip'] }}"
+    share_type: "cifs"
+
+  tasks:
+#  - name: Check ticket stage first
+#    include_role:
+#      name: servicenow
+#      tasks_from: get_ticket
+
+  - name: get vserver that matches all the requirements
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_vserver
+
+  - name: Check if the volume exists on the vserver
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_volume
+
+  - name: Get aggregate with the most free space
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_aggregate
+
+#  - name: Add CIFS/NFS Volume
+#    block:
+#    - include_role:
+#      name: netapp
+#      tasks_from: netapp_add_volume
+#
+#    rescue:
+#    - debug:
+#        msg: "IP Assignation failed. Rolling back"
+#    - name: Rollback Volume Creation
+#      import_role:
+#        name: netapp_volume_delete
+#    - fail:
+#        msg: "Ensure that the whole task fails so that failure is recorded"
+#    when: servicenow_ticket_status == 'Requested'

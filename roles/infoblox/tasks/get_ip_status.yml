@@ -1,0 +1,31 @@
+---
+# this gets the IP properties and grabs the
+# network portion of the 'network_results'
+# variable
+- name: debugging variables before running
+  debug:
+    msg:
+    - "ip_address: {{ ip_address }}"
+
+- name: search for IP address and return network info/prefix
+  mod_infoblox:
+    action: get_ip_status
+    ip_address: "{{ ip_address }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: network_results
+
+- name: set variable for network
+  set_fact:
+    network: "{{ network_results.meta.0.network }}"
+
+- name: debug network_results register
+  debug:
+    msg:
+    - "network: {{ network }}"
+
+- name: include/import role 'get_gateway_and_prefix.yml'
+  include_role:
+    name: infoblox
+    tasks_from: get_gateway_and_prefix

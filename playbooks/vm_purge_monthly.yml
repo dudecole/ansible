@@ -1,0 +1,32 @@
+---
+
+- hosts: "windows-{{ env }}"
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - ~/ansible/group_vars/{{env}}-vault.yml
+  - ~/ansible/group_vars/{{env}}-vars.yml
+
+  vars:
+    ansible_user: "{{ ansible_winrm_user }}"   # these reside in the vault file
+    ansible_password: "{{ ansible_winrm_password }}"   # these reside in the vault file
+
+  tasks:
+  - name: include role
+    include_role:
+      name: vmware
+      tasks_from:
+        purge_old_vms.yml
+    with_items:
+    - "{{ vcenters }}"
+    loop_control:
+      loop_var: "vcenter"
+
+  - name: purge nutanix categories
+    include_role:
+      name: nutanix
+      tasks_from:
+        purge_old_vms.yml
+    vars:
+      category_name: "{{ decomm_folder }}"

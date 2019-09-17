@@ -1,0 +1,61 @@
+---
+- name: assigning Nutanix variables
+  set_fact:
+    base_url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3"
+
+
+- name: update VM
+  uri:
+    url: "{{ base_url }}/vms"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 202
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    body:
+      spec:
+        description: "{{ snow_requester_email }}; {{ vm_os }}; {{ snow_requester_fname }} {{ snow_requester_lname }}"
+        resources:
+          num_threads_per_core: 1
+#          power_state: "OFF"
+          num_vcpus_per_socket: 4
+          num_sockets: 1
+          memory_size_mib: 8192
+#          hardware_clock_timezone: "{{ hw_time_zone }}"
+#          boot_config:  MAYBE DON'T NEED THIS SINCE IT
+#            boot_device:   DOESN'T EVEN ACCEPT IT AS PART OF THE SCHEMA
+#            device_index: 0
+#            adapter_type: "SCSI"
+#          disk_list:
+#          - data_source_reference:
+#              kind: "image"
+#              uuid: "{{ image_uuid }}" #"50638ff2-5118-41c0-a5bc-68ad65bb79b2"  # will need to URI to get the latest UUID of qcow
+#            device_properties:
+#              disk_address:
+#                device_index: 0
+#                adapter_type: "SCSI"
+#              device_type: "DISK"
+#          guest_os_id: "{{ vm_os }}"
+          guest_tools:
+            nutanix_guest_tools:
+              state: "ENABLED"
+              ngt_state: "INSTALLED"
+#          guest_customization:
+#            cloud_init:
+#              user_data: "{{ cloud_init }}"
+
+#        cluster_reference:
+#          kind: "cluster"
+#          name: "{{ cluster_name }}"
+#          uuid: "{{ cluster_uuid }}"
+        name: "#"{{ vm_name }}"
+      api_version: "3.1.0"
+      metadata:
+        kind: "vm"
+        spec_version: 1
+    body_format: json
+  register: deploy_result

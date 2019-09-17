@@ -1,0 +1,44 @@
+---
+- name: Assigning variable nutanix_cluster when env=prod and datacenter=EDC
+  set_fact:
+    nutanix_new_vm_cluster_pattern: '{{ edc_nutanix_new_vm_cluster_pattern }}'
+  when: datacenter == 'EDC' #and env == 'prod'
+
+- name: Assigning variable nutanix_cluster when env=prod and datacenter=WDC
+  set_fact:
+    nutanix_new_vm_cluster_pattern: '{{ wdc_nutanix_new_vm_cluster_pattern }}'
+  when: datacenter == 'WDC' #and env == 'prod'
+
+# vm_memory variable needs to be defined here - so we can find the memory capacity
+# get-cluster.yml needs vm_memory defined
+- name: assigning VM compute variables based on the vm_size value of small
+  set_fact:
+    vm_memory: 2048
+    vm_cpu: 1
+  when: vm_size == "s"
+
+- name: assigning VM compute variables based on the vm_size value of medium
+  set_fact:
+    vm_memory: 4096
+    vm_cpu: 2
+  when: vm_size == "m" or vm_size is undefined or vm_size == ""
+
+- name: assigning VM compute variables based on the vm_size value of large
+  set_fact:
+    vm_memory: 16384
+    vm_cpu: 4
+  when: vm_size == "l"
+
+- name: assigning VM compute variables based on the vm_size value of large
+  set_fact:
+    vm_memory: 32768
+    vm_cpu: 8
+  when: vm_size == "xl"
+
+- name: assigning VM compute variables based on the vm_size value of large
+  set_fact:
+    vm_memory: 65536
+    vm_cpu: 12
+  when: vm_size == "xxl"
+
+- include_tasks: get-cluster.yml

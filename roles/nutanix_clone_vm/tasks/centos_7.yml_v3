@@ -1,0 +1,259 @@
+---
+
+- name: assigning Nutanix variables
+  set_fact:
+    central_base_url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3"
+
+- name: create {{ datacenter }} {{ vm_env }} nutanix VM {{ vm_os }}
+  debug:
+    msg:
+    - "vm_name: {{ vm_name }}"
+    - "vm_os: {{ vm_os }}"
+    - "vm_env: {{ vm_env }}"
+    - "datacenter: {{ datacenter }}"
+    - "domain: {{ domain }}"
+    - "vm_memory_mb: {{ vm_memory }}"
+    - "vm_cpu: {{ vm_cpu }}"
+    - "central_base_url: {{ central_base_url }}"
+    - "username: {{ nutanix_user }}"
+
+
+- name: search for image_name in os_image_service
+  set_fact:
+    image_name: "{{ item['target_image_name'] }}"
+  with_items: "{{ os_image_service['images'] }}"
+  when: "'{{ vm_os }}' in item.target_image_name"
+
+- name: get QCOW disk image
+  uri:
+    url: "{{ central_base_url }}/images/list"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 200
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    body:
+      filter: "name=={{ image_name }}"
+    body_format: json
+  register: image_result
+
+- name: debug image search result
+  debug:
+    msg:  "image_result {{ image_result.content | from_json }}"
+
+- name: set fact on image result in json format
+  set_fact:
+    image_list: "{{ ( image_result.content | from_json )['entities'] }}"
+
+- name: fail when image_list != 1
+  fail:
+    msg: "NO IMAGES FOUND"
+  when: image_list | length != 1
+
+- name: setting fact of image_uuid
+  set_fact:
+    image_uuid: "{{ ( image_result.content | from_json )['entities'][0].metadata.uuid }}"
+
+- name: debugging image_uuid
+  debug:
+    msg:
+    - "image_uuid: {{ image_uuid }}"
+
+- name: create VM
+  uri:
+    url: "{{ central_base_url }}/vms"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 202
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    body: |
+      {
+         "spec": {
+            "description": "{{ snow_requester_email }}; {{ vm_os }}; {{ snow_requester_fname }} {{ snow_requester_lname }}",
+            "resources": {
+               "num_threads_per_core": 1,
+               "power_state": "OFF",
+               "num_vcpus_per_socket": {{ vm_cpu }},
+               "num_sockets": 1,
+               "memory_size_mib": {{ vm_memory }},
+               "hardware_clock_timezone": "{{ hw_time_zone }}",
+               "disk_list": [
+                  {
+                     "data_source_reference": {
+                        "kind": "image",
+                        "uuid": "{{ image_uuid }}"
+                     },
+                     "device_properties": {
+                        "disk_address": {
+                           "device_index": 0,
+                           "adapter_type": "SCSI"
+                        },
+                        "device_type": "DISK"
+                     }
+                  }
+               ],
+               "guest_os_id": "{{ vm_os }}",
+               "guest_customization": {
+                  "cloud_init": {
+                     "user_data": "{{ cloud_init }}"
+                  }
+               }
+            },
+            "cluster_reference": {
+               "kind": "cluster",
+               "name": "{{ cluster_name }}",
+               "uuid": "{{ cluster_uuid }}"
+            },
+            "name": "{{ vm_name }}"
+         },
+         "api_version": "3.1.0",
+         "metadata": {
+            "kind": "vm",
+            "spec_version": 1
+         }
+      }
+    body_format: json
+  register: deploy_result
+
+- name: pause a few seconds
+  pause:
+    seconds: 2
+
+- name: debug the return of the king - vm creation
+  debug:
+    msg: "{{ deploy_result.json }}"
+
+- name: debug the task_uuid from new VM creation
+  set_fact:
+    task_uuid: "{{ deploy_result.json.status.execution_context.task_uuid }}"
+
+- name: debug task uuid
+  debug:
+    msg: "VM creation task uuid - {{task_uuid}}"
+
+- name: pause a few seconds
+  pause:
+    seconds: 5
+
+
+- name: get VM task
+  uri:
+    url: "{{ central_base_url }}/tasks/{{ task_uuid }}"
+    validate_certs: no
+    force_basic_auth: yes
+    method: GET
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+  register: create_vm_task_result
+
+- name: pause a few seconds
+  pause:
+    seconds: 5
+
+- name: set fact task result
+  set_fact:
+    new_vm_task_result: "{{ create_vm_task_result.content | from_json }}"
+
+
+- name: set fact task result
+  set_fact:
+    new_vm_uuid: "{{ new_vm_task_result['entity_reference_list'][0]['uuid'] }}"
+  when: new_vm_task_result['entity_reference_list'] | length == 1
+
+- name: show task result
+  debug:
+    msg:
+    - "new_vm_uuid: {{ new_vm_uuid }}"
+
+#################################
+####### prism element api calls
+#################################
+
+- name: assigning Nutanix variables
+  set_fact:
+    element_base_url: "https://{{ cluster_ip }}:{{ nutanix_port }}/api/nutanix/v2.0"
+
+# adding nic to VM
+- name: add NIC to VM
+  uri:
+    url: "{{ element_base_url }}/vms/{{ new_vm_uuid }}/nics/"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    body:
+      spec_list:
+      - network_uuid: "{{ vlan_uuid }}"
+    body_format: json
+  register: add_nic_task_result
+
+
+- name: debug add_nic_task_result
+  debug:
+    msg:
+    - "add_nic_task_result: {{ ( add_nic_task_result.content | from_json )['task_uuid'] }}"
+
+- name: debug add_nic_task_result
+  set_fact:
+    add_nic_task_result: "{{ ( add_nic_task_result.content | from_json )['task_uuid'] }}"
+
+- name: start new  VM
+  uri:
+    url: "{{ element_base_url }}/vms/{{ new_vm_uuid }}/set_power_state/"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    body:
+        transition: "ON"
+    body_format: json
+  register: start_result
+
+
+- name: Print info
+  debug:
+    msg:
+    - "VmName / domain : {{ vm_name }} .  {{ domain }}"
+    - "OS type: {{ vm_os }}"
+    - "Environtment: {{ vm_env }}"
+    - "Memory MB: {{ vm_memory }}"
+    - "CPU: {{ vm_cpu }}"
+    - "datacenter: {{ datacenter}}"
+    - " "
+    - "IP address: {{ ip_address }}"
+    - "Gateway: {{ gateway }}"
+    - " "
+    - "qcow used :     {{ image_name }}"
+    - "New VM uuid : {{ new_vm_uuid }}"
+    - "Network_uuid vlan : {{ vlan_name }}"
+   # - "snow time zone : {{ hw_time_zone }}"
+    - " "
+    - "user: {{ nutanix_user }}"
+    - "url to start VM : {{ element_base_url }}/vms/{{ new_vm_uuid }}/set_power_state/"
+    - "user list: {{ remote_access }} "
+
+  tags: sys_info
+
+- name: debug the ssh user
+  debug:
+    msg:
+    - "ssh list: {{ remote_access }}"
+

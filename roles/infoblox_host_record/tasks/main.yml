@@ -1,0 +1,39 @@
+---
+
+- name: set fqdn when env=test
+  set_fact:
+    fqdn: "{{vm_name}}.infobloxtest.com"
+  when: env == 'test' and auto is undefined
+
+- name: debugging fqdn value
+  debug:
+    msg:
+    - "fqdn: {{ fqdn }}"
+    - "ip_address: {{ ip_address }}"
+    - "infoblox_host: {{ infoblox_host }}"
+    - "infoblox_view: {{ infoblox_view }}"
+
+
+- name: configure an IPV4 host record
+  nios_host_record:
+    name: "{{ fqdn }}"
+    ipv4:
+    - address: "{{ ib_address }}"
+    state: present
+    view: "{{ infoblox_view }}"
+    provider:
+      host:  "{{ infoblox_host }}"
+      username: "{{ infoblox_user }}"
+      password: "{{ infoblox_pw }}"
+
+- name: fetch the host record just created.
+  set_fact:
+    host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name': fqdn}) }}"
+
+- name: Debug the host_record variable
+  debug:
+    msg:
+    - "Host_record variable: {{ host_record }}"

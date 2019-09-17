@@ -1,0 +1,54 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+# ansible-playbook playbooks/nutanix_vm_provision.yml --ask-vault-pass or --vault-password-file -e "env=test|prod request_number="
+  vars_files:
+  - ../group_vars/{{env}}-vault.yml
+  - ../group_vars/mskey-vault.yml
+  - ../group_vars/{{env}}-vars.yml
+
+  vars:
+    snow_ritm: "{{ request_number }}" # pass as --extra-var
+
+  tasks:
+
+  - name: getting stage and only running when stage == 'VM Creation'
+    import_role:
+      name: snow_get_ritm
+
+  - name: Get networking information
+    include_role:
+      name: infoblox_bu_network
+      tasks_from: get_network_info
+
+  - name: If VM exists, fail before we start
+    import_role:
+      name: nutanix_get_vm
+    when: ritm_stage == 'VM Creation'
+
+  - name: Assign IP and record progress in ServiceNow
+    block:
+    - import_role:
+        name: nutanix_get_cluster
+    - import_role:
+        name: nutanix_get_vlan
+    - import_role:
+        name: vm_customize
+    - import_role:
+        name: nutanix_categorize_vm
+    - import_role:
+        name: nutanix_clone_vm
+    - import_role:
+        name: snow_close_vmdeploy
+
+    rescue:
+    - debug:
+        msg: "VM Creation failed. Rolling back"
+    - name: Rollback VM creation
+      import_role:
+        name: vm_decommission
+    - fail:
+        msg: "Ensure that the whole task fails so that failure is recorded"
+    when: ritm_stage == 'VM Creation'

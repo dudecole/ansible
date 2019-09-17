@@ -1,0 +1,31 @@
+---
+
+- name: include/import role 'get_network_info'
+  include_tasks: get_network_info.yaml
+
+- name: get next IP
+  mod_infoblox:
+    action: add_host_record
+    fqdn: "{{ fqdn }}"
+    subnet: "{{ network }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: result
+
+- name: setting the next ip address variable
+  set_fact:
+    ip_address: "{{ result.meta }}"
+
+
+- name: debugging the ip_address variable
+  debug:
+    msg:
+    - "here is the ip_address variable: {{ ip_address }}"
+
+# This will ping the IP address to verify it isn't being used
+# will have to put this here for now.
+- name: include/import role 'ping_precheck.yml'
+  include_role:
+    name: infoblox
+    tasks_from: ping_precheck

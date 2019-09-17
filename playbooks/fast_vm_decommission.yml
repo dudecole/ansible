@@ -1,0 +1,36 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - "~/ansible/group_vars/{{env}}-vault.yml"
+  - "~/ansible/group_vars/{{env}}-vars.yml"
+
+
+  vars:
+    central_addr: "{{ central_addr }}"
+    nutanix_port: '{{ nutanix_port }}'
+    vm_name: "VMOPSVLANTEST"
+    fqdn: "dcoletest123.infobloxtest.com"
+    client_name: "{{ vm_name }}"
+
+  pre_tasks:
+  - name: debug vars from above
+    debug:
+      msg:
+      - "central_addr: {{ central_addr }}"
+      - "nutanix_port: {{ nutanix_port }}"
+      - "vm_name: {{ vm_name }}"
+      - "fqdn: {{ fqdn }}"
+      - "client_name: {{ client_name }}"
+
+    - fail:
+        msg: "VM Name is empty"
+      when: vm_name == ""
+
+  roles:
+  - vm_decommission
+  - infoblox_decommission
+  - solarwinds_delete_node
+  - commvault_unlicense_client

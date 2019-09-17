@@ -1,0 +1,25 @@
+---
+# this requires the following variables:
+# 1. 'network' - 'X.X.X.X/24' format
+# 2. 'infoblox_host' - in the vars file
+# 3. 'infoblox_user' - in the vault file
+# 4. 'infoblox_pw' - in the vault file
+
+
+- name: task to get_vlan in module
+  mod_infoblox:
+    action: get_vlan
+    subnet: "{{ network }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: vlan_result
+
+- name: task to set VLAN variable
+  set_fact:
+    vlan: "{{ vlan_result.meta}}"
+
+- name: debugging vlan variable
+  debug:
+    msg:
+    - "here is the vlan: {{ vlan }}"

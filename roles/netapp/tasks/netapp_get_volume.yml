@@ -1,0 +1,47 @@
+---
+
+- name: netapp_get_volume.yml
+  debug:
+    msg:
+    - "vserver_no_hiphen: {{ vserver_no_hiphen }}"
+    - "volume_name: {{ volume_name }}"
+    - "cluster_ip: {{ cluster_ip }}"
+
+- name: combine vserver and business_unit and volume_name together
+  set_fact:
+    volume_search_string: "{{ vserver_no_hiphen }}_{{ volume_name }}"
+
+- name: debug volume_search_string
+  debug:
+    msg:
+    - "volume_search_string: {{ volume_search_string }}"
+
+- name: look for volume
+  na_ontap_command:
+    hostname: "{{ cluster_ip }}"
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    command: ['volume', 'show', '{{ volume_search_string }}']
+    https: true
+    validate_certs: false
+  register: volume_results
+
+- name: parse data from volume_results
+  parse_ontap_cli:
+    action: parse_volume
+    volume_cli_output: "{{ volume_results }}"
+  register: parsed_volume_output
+
+- name: debug parsed_volume_output
+  debug:
+    msg:
+    - "volume_name: {{ volume_name }}"
+    - "parsed_volume_output: {{ parsed_volume_output.meta }}"
+
+- name: fail when 'Volume' appear in the header of the XML output
+  fail:
+    msg: "VOLUME ALREADY EXISTS!"
+  when: "'Volume' in parsed_volume_output.meta"
+
+
+

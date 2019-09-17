@@ -1,0 +1,105 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - "~/storage-ansible/group_vars/{{env}}-vault.yml"
+  - "~/storage-ansible/group_vars/{{env}}-vars.yml"
+
+# here is how you run this..
+# ansible-playbook playbooks/manual_netapp_add_volume.yml --ask-vault-pass -e "env=test"
+
+# if you want to skip the prompts, you can add all the variables in the -e "" area..
+# here is an example:
+#
+#    ansible-playbook ~.... -ask-vault-pass... -e "env=test vserver_domain=XACTWARE.COM
+#    volume_name=djtest volume_size=1 size_unit=gb business_unit=3002 netapp_env=P..etc."
+#
+
+
+  vars_prompt:
+  - name: vserver_domain
+    prompt: What is the domain of the vserver? (ex. XACTWARE.COM, VERISKDOM.COM)
+    private: no
+
+  - name: volume_name
+    prompt: What is the volume name?
+    private: no
+
+  - name: volume_size
+    prompt: What is the size of the volume?
+    private: no
+
+  - name: size_unit
+    prompt: What is the unit size? (ex. gb, mb, tb)
+
+  - name: business_unit
+    prompt: What is business unit code? (ex. 3002, 3991)
+    private: no
+
+  - name: netapp_env
+    prompt: What is the volume environment? (ex. P, D, T)
+    private: no
+
+  - name: datacenter
+    prompt: What is datacenter location? (ex. wdc, edc)
+    private: no
+
+  - name: share_type
+    prompt: What type of share to create? (ex. cifs, nfs)
+    private: no
+
+  vars:
+    ansible_user: "{{ cluster_user }}"
+    ansible_password: "{{ cluster_pw }}"
+    cluster_ip: "{{ cluster[datacenter]['ip'] }}"
+
+
+  pre_tasks:
+  - fail:
+      msg: "You forgot some variables.. :) "
+    when: >
+      vserver_domain is undefined or
+      volume_name is undefined or
+      volume_size is undefined or
+      business_unit is undefined or
+      size_unit is undefined or
+      netapp_env is undefined or
+      datacenter is undefined or
+      share_type is undefined or
+
+
+  - debug:
+      msg:
+      - "vserver_domain: {{ vserver_domain }}"
+      - "volume_name: {{ volume_name }}"
+      - "volume_size: {{ volume_size }}"
+      - "size_unit: {{ size_unit }}"
+      - "business_unit: {{ business_unit }}"
+      - "netapp_env: {{ netapp_env }}"
+      - "datacenter: {{ datacenter }}"
+      - "cluster_ip: {{ cluster_ip }}"
+      - "share_type: {{ share_type }}"
+
+  tasks:
+  - name: get vserver that matches all the requirements
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_vserver
+
+  - name: Check if the volume exists on the vserver
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_volume
+
+  - name: Get aggregate with the most free space
+    include_role:
+      name: netapp
+      tasks_from: netapp_get_aggregate
+
+#  - name: Add CIFS/NFS Volume
+#    block:
+#    - include_role:
+#      name: netapp
+#      tasks_from: netapp_add_vol

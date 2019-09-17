@@ -1,0 +1,35 @@
+---
+
+- name: debug required variables
+  debug:
+    msg:
+    - "vm_name: {{ vm_name }}"
+    - "vcenter: {{ vcenter }}"
+    - "datacenter: {{ datacenter }}"
+    - "folder: {{ folder }}"
+
+- name: Move Virtual Machine
+  vmware_guest_move:
+    hostname: "{{ vcenter }}"
+    username: "{{ vcenter_user }}"
+    password: "{{ vcenter_pass }}"
+    datacenter: "{{ datacenter }}"
+    validate_certs: no
+    name: "{{ vm_name }}"
+    dest_folder: "{{ folder }}"
+  delegate_to: localhost
+  register: move_results
+
+- name: fail when 'instance' not in move_results
+  fail:
+    msg: >
+      No instance in move_results register -
+      VM NOT MOVED!
+  when: '"instance" not in move_results'
+
+- name: debug move_results
+  debug:
+    msg:
+    - "move_results: {{ move_results }}"
+    - "destination_folder: {{ move_results.instance.hw_folder }}"
+  when: '"instance" in move_results'

@@ -1,0 +1,45 @@
+- name: set fqdn to IP address when env == 'test'
+  set_fact:
+    host_address: "{{ ip_address }}"
+  when: env == 'test'
+
+- name: set fqdn to host_address variable when env == 'prod'
+  set_fact:
+    host_address: "{{ fqdn }}"
+  when: env == 'prod'
+
+- name: log into the firewall
+  command: >
+    ldapwhoami
+    -H '{{ firewall_ldap_url }}'
+    -x
+    -D '{{ firewall_user }}@{{ firewall_domain }}'
+    -w '{{ firewall_password }}'
+  changed_when: false
+  delegate_to: localhost
+
+- name: pause a few seconds
+  pause:
+    seconds: 5
+
+- name: Check that the machine is online and that it is a windows machine
+  wait_for:
+    host: "{{ host_address }}"
+    port: 3389
+    state: started         # Port should be open
+    delay: 0               # No wait before first check (sec)
+    timeout: 1200          # Stop checking after timeout (sec)
+  # This checks it against a regex, the `(?i)` means `case insensitive`
+  when:
+  - vm_os is search("(?i)win")
+
+- name: Check that the machine is online and that it is a linux machine
+  wait_for:
+    host: "{{ host_address }}"
+    port: 22
+    state: started         # Port should be open
+    delay: 0               # No wait before first check (sec)
+    timeout: 150           # Stop checking after timeout (sec)
+  # This checks it against a regex, the `(?i)` means `case insensitive`
+  when:
+  - (vm_os is search("(?i)centos")) or (vm_os is search("(?i)rhel")) or (vm_os is search("(?i)redhat"))

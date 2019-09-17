@@ -1,0 +1,124 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - ~/ansible/group_vars/{{env}}-vault.yml
+  - ~/ansible/group_vars/mskey-vault.yml
+  - ~/ansible/group_vars/{{env}}-vars.yml
+
+  vars_prompt:
+
+  - name: vm_name_case
+    prompt: What is the vmname?
+    private: no
+
+  - name: vm_memory
+    prompt: Memory MB? (ex. 2048, 4096, etc..)
+    private: no
+
+  - name: vm_cpu
+    prompt: How many CPUs?
+    private: no
+
+  - name: vm_os
+    prompt: Operating System? (ex. win_2016, centos_7)
+    private: no
+
+  - name: vm_env
+    prompt: Test, Acceptance, Development, or Production? (ex. Test, Acceptance, Production, Development)
+    private: no
+
+  - name: datacenter
+    prompt: datacenter location? (ex. WDC, EDC)?
+    private: no
+
+  - name: domain
+    prompt: What is the domain?
+    private: no
+
+  - name: business_unit
+    prompt: Business Unit
+    private: no
+
+  - name: net_zone
+    prompt: Network Zone (ex. DMZ, Internal)
+    private: no
+
+  - name: remote_access
+    prompt: I-number for user allowed to RDP/SSH? Only one please.
+    private: no
+
+  - name: requester_email
+    prompt: Owner Email (ex johnny.cash@email.com)
+    private: no
+
+  - name: requester_name
+    prompt: Owner Name (ex. Johnny Cash)
+    private: no
+
+  - name: vlan
+    prompt: VLAN? (ex. Vlan_537 )
+    private: no
+
+  - name: ip_address
+    prompt: IP address? (ex. 192.168.0.1)
+    private: no
+
+  vars:
+
+  pre_tasks:
+
+    - set_fact:
+        requester_fname: "{{ requester_name.split()[0] }}"
+        requester_lname: "{{ requester_name.split()[1] }}"
+
+    - set_fact:
+        vm_name: "{{ vm_name_case | lower }}"
+
+    - fail:
+        msg: "VM Name or Owner email is empty"
+      when: vm_name == "" or requester_email == ""
+
+    - set_fact:
+        fqdn: "{{ vm_name }}.{{domain}}"
+
+    - set_fact:
+        fqdn: "{{ fqdn }}"
+
+    - set_fact:
+        business_unit: "My Business Unit)"
+      when: business_unit == ''
+
+    - set_fact:
+        fqdn: "{{vm_name}}.infobloxtest.com"
+      when: env == 'test'
+
+    - debug:
+        msg:
+        - "business_unit: {{ business_unit }}"
+        - "vm_name: {{ vm_name }}"
+        - "fqdn: {{ fqdn }}"
+        - "requester_fname: {{ requester_fname }}"
+        - "requester_lname: {{ requester_lname }}"
+        - "requester_email: {{ requester_email }}"
+
+  tasks:
+  - include_role:
+      name: infoblox
+      tasks_from: get_ip_status
+  - include_role:
+        name: nutanix_get_cluster
+  - include_role:
+        name: nutanix_get_vlan
+  - include_role:
+        name: vm_customize
+  - include_role:
+        name: nutanix_categorize_vm
+  - include_role:
+        name: nutanix_clone_vm
+  - include_role:
+       name: snow_email
+  - include_role:
+       name: validate_vm

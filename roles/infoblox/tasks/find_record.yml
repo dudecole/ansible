@@ -1,0 +1,54 @@
+---
+# this requires the following variables:
+# 1. 'vm_name' - infoblox doesn't use upper characters, need to set lower on this
+# 2. 'infoblox_host'
+# 3. 'infoblox_user'
+# 4. 'infoblox_pw'
+
+- name: setting the vmname to lowercase
+  set_fact:
+    vm_name_lower: "{{ vm_name | lower }}"
+    fqdn: "{{ fqdn | lower }}"
+
+
+- name: debug vmname lowercase
+  debug:
+    msg:
+    - "vm_name_lower: {{ vm_name_lower }}"
+
+- name: fetch the host record if it exists.
+  set_fact:
+    host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': fqdn }) }}"
+
+- name: View host record variable
+  debug:
+    msg: "{{ host_record }}"
+
+
+- name: fetch the A record if it exists.
+  set_fact:
+    a_record: "{{ lookup('nios', 'record:a', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': fqdn}) }}"
+
+- name: View A record variable
+  debug:
+    msg: "{{ a_record }}"
+  when: "'_ref' in a_record"
+
+- name: fetch the PTR record.
+  set_fact:
+    ptr_record: "{{ lookup('nios', 'record:ptr', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw},
+                                                          filter={'ptrdname~': vm_name_lower}) }}"
+
+- name: debug ptr_record variable
+  debug:
+    msg:
+    - "ptr_record {{ ptr_record }}"
+  when: "'_ref' in ptr_record"

@@ -1,0 +1,105 @@
+---
+# this requires the following variables:
+# 1. 'fqdn'
+# 2. 'infoblox_host' - in the vars file
+# 3. 'infoblox_user' - in the vault file
+# 4. 'infoblox_pw' - in the vault file
+
+- name: fetch the host record if it exists.
+  set_fact:
+    host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': fqdn}) }}"
+
+- name: set the IP address when host_record is defined
+  set_fact:
+    ip: "{{ host_record.ipv4addrs[0].ipv4addr }}"
+  when: "'_ref' in host_record"
+
+- name: view host record variable
+  debug:
+    msg:
+    - "{{ host_record }}"
+    - "{{ ip|default('') }}"
+  when: "'_ref' in host_record"
+
+- name: delete host
+  uri:
+    headers:
+      Content-Type: "application/json"
+    url: "https://{{ infoblox_host }}/wapi/v1.2/{{ host_record._ref }}?_return_as_object=1"
+    method: "DELETE"
+    password: "{{ infoblox_pw }}"
+    user: "{{ infoblox_user }}"
+    validate_certs: False
+  # When guarantees idempotence
+  when: "'_ref' in host_record"
+
+- name: fetch the A record if it exists.
+  set_fact:
+    a_record: "{{ lookup('nios', 'record:a', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': fqdn}) }}"
+
+- name: set the IP address from the A_record variable
+  set_fact:
+    ip_a: "{{ a_record.ipv4addr }}"
+  when: "'_ref' in a_record"
+
+- name: view A record variable
+  debug:
+    msg:
+    - "A_record: {{ a_record }}"
+    - "IP_A_record: {{ ip_a|default('') }}"
+
+
+- name: Delete A record
+  uri:
+    headers:
+      Content-Type: "application/json"
+    url: "https://{{ infoblox_host }}/wapi/v1.2/{{ a_record._ref }}?_return_as_object=1"
+    method: "DELETE"
+    password: "{{ infoblox_pw }}"
+    user: "{{ infoblox_user }}"
+    validate_certs: False
+  # When guarantees idempotence
+  when: "'_ref' in a_record"
+
+
+
+- name: fetch the PTR record.
+  set_fact:
+    ptr_record: "{{ lookup('nios', 'record:ptr', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw},
+                                                          filter={'ptrdname~': fqdn}) }}"
+
+- name: debug ptr_record variable
+  debug:
+    msg:
+    - "ptr_record {{ ptr_record }}"
+
+- name: set the ptrdname and ptr_record_id variables
+  set_fact:
+    ptr_record_id: "{{ ptr_record._ref }}"
+    ptrdname: "{{ ptr_record.ptrdname }}"
+  when: "'_ref' in ptr_record"
+
+- name: view PTR record variables
+  debug:
+    msg:
+    - "ptrdname: {{ ptrdname }}"
+  when: "'_ref' in ptr_record"
+
+- name: Delete PTR record
+  uri:
+    headers:
+      Content-Type: "application/json"
+    url: "https://{{ infoblox_host }}/wapi/v1.2/{{ ptr_record._ref }}?_return_as_object=1"
+    method: "DELETE"
+    password: "{{ infoblox_pw }}"
+    user: "{{ infoblox_user }}"
+    validate_certs: False
+  when: "'_ref' in ptr_record"

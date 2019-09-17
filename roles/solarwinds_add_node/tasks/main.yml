@@ -1,0 +1,36 @@
+---
+
+# setting this for the VMD playbook - we may want to consider using this
+# main.yml for just setting variables and then importing other playbook/tasks
+# similar to what is done in the file 'nutanix_clone_vm/tasks/main.yml'
+# just my 2 cents..  are there any horse socks - is anyone listening to me?
+
+
+- name: set variable of node_name when vm_name is defined
+  set_fact:
+    node_name: "{{ vm_name }}"
+  when: vm_name is defined
+
+- name: debugging the variables before the add_node run
+  debug:
+    msg:
+    - "solar_host: {{ solar_host }}"
+    - "solar_user: {{ solar_user }}"
+    - "node_name: {{ node_name }}"
+    - "ip: {{ ip }}"
+
+- name: task to add solarwinds node
+  mod_solarwinds:
+    action: add_node
+    solar_host: "{{ solar_host }}"
+    solar_user: "{{ solar_user }}"
+    solar_pw: "{{ solar_pw }}"
+    node_name: "{{ node_name }}"
+    ip: "{{ ip_address }}"
+  register: result
+
+- name: debug the return of node search
+  debug:
+    msg:
+    - "solarwinds node return: {{ result }}"
+

@@ -1,0 +1,15 @@
+
+- name: task to check if project exists
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    project: "{{ business_unit }}"
+    action: get_project
+  register: proj_result
+
+- name: debug get_project task
+  debug:
+    msg:
+    - "Project_result: {{ proj_result }}"

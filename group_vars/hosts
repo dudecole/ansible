@@ -1,0 +1,9 @@
+[windows-test]
+powershell ansible_host=192.168.50.10
+
+[windows-test:vars]
+ansible_connection = winrm
+ansible_winrm_transport = ntlm
+ansible_winrm_server_cert_validation = ignore
+ansible_port = 5985
+

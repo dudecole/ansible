@@ -1,0 +1,185 @@
+
+- name: Starting VMware find_vm.yml - Debug required variables
+  debug:
+    msg:
+    - "datacenter: {{ next_vcenter.datacenter }}"
+    - "address: {{ next_vcenter.address }}"
+    - "vm_name: {{ vm_name }}"
+
+- name: initialize facts if they are undefined
+  set_fact:
+    vmware_detected: 0
+    found_vmware: 0
+    duplicate_vmware_detected: false
+  when:
+    - vmware_detected is undefined
+    - found_vmware is undefined
+    - duplicate_vmware_detected is undefined
+
+- name: set duplicate when vmware_detected is greater than 1
+  set_fact:
+    duplicate_vmware_detected: True
+  when:
+    - vmware_detected is defined
+    - vmware_detected | int > 1
+
+- name: searching for vm_name in lower case
+  vmware_guest_facts:
+    hostname: "{{ next_vcenter.address }}"
+    username: "{{ vcenter_user }}"
+    password: "{{ vcenter_pass }}"
+    datacenter: "{{ next_vcenter.datacenter | upper }}"
+    name: "{{ vm_name | lower }}"
+    validate_certs: no
+  delegate_to: localhost
+  ignore_errors: True
+  register: vmware_results_lower
+
+- name: debug lower case results
+  debug:
+    msg:
+    - "vmware_results: {{ vmware_results_lower.instance }}"
+  when: >
+    "instance" in vmware_results_lower
+
+- name: set fact lower case results
+  set_fact:
+    vm_name: "{{ vm_name | lower }}"
+    vmware_results: "{{ vmware_results_lower }}"
+    vcenter: "{{ next_vcenter.address }}"
+    datacenter: "{{ next_vcenter.datacenter | upper }}"
+    found_vmware: "{{ found_vmware | int + 1 }}"
+    vm_annotation: "{{ vmware_results_lower.instance.annotation }}"
+  when: >
+    "instance" in vmware_results_lower
+
+- name: debug lower case results
+  debug:
+    msg:
+    - "vcenter: {{ vcenter }}"
+    - "vm_name: {{ vm_name }}"
+    - "vmware_detected: {{ vmware_detected }}"
+    - "found_vmware: {{ found_vmware }}"
+    - "vm_annotation: {{ vm_annotation }}"
+    - "datacenter: {{ next_vcenter.datacenter | upper }}"
+  when: >
+    "instance" in vmware_results_lower
+
+- name: searching for vm_name in UPPER case
+  vmware_guest_facts:
+    hostname: "{{ next_vcenter.address }}"
+    username: "{{ vcenter_user }}"
+    password: "{{ vcenter_pass }}"
+    datacenter: "{{ next_vcenter.datacenter | upper }}"
+    name: "{{ vm_name | upper }}"
+    validate_certs: no
+  delegate_to: localhost
+  ignore_errors: True
+  register: vmware_results_upper
+
+- name: debug UPPER case results
+  debug:
+    msg:
+    - "vmware_results: {{ vmware_results_upper.instance }}"
+  when: >
+    "instance" in vmware_results_upper
+
+- name: set fact of the UPPER case results
+  set_fact:
+    vm_name: "{{ vm_name | upper }}"
+    vmware_results: "{{ vmware_results_upper }}"
+    vcenter: "{{ next_vcenter.address }}"
+    datacenter: "{{ next_vcenter.datacenter | upper }}"
+    found_vmware: "{{ found_vmware | int + 1 }}"
+    vm_annotation: "{{ vmware_results_upper.instance.annotation }}"
+  when: >
+    "instance" in vmware_results_upper
+
+- name: debug UPPER case results
+  debug:
+    msg:
+    - "vcenter: {{ vcenter }}"
+    - "datacenter: {{ next_vcenter.datacenter | upper }}"
+    - "vm_name: {{ vm_name }}"
+    - "vmware_detected: {{ vmware_detected }}"
+    - "found_vmware: {{ found_vmware }}"
+    - "vm_annotation: {{ vm_annotation }}"
+  when: >
+    "instance" in vmware_results_upper
+
+
+- name: debug the vm_name variable after setting upper and lower
+  debug:
+    msg:
+    - "vcenter: {{ vcenter }}"
+    - "vmware_detected: {{ vmware_detected }}"
+    - "found_vmware: {{ found_vmware }}"
+    - "next_vm_datacenter: {{ next_vcenter.address }}"
+  when: >
+    vmware_results is defined
+
+- name: set vmware_detected when found_vmware is defined
+  set_fact:
+    vmware_detected: "{{ vmware_detected|int + found_vmware|int }}"
+  when:
+    - found_vmware >= 1
+
+- name: debugging vmware_detected
+  debug:
+    msg:
+    - "vmware_detected: {{ vmware_detected }}"
+    - "found_vmware: {{ found_vmware }}"
+  when:
+     - vmware_detected is defined
+     - found_vmware is defined
+
+- name: setting fact when VM is found
+  set_fact:
+    vmware_vm_name: "{{ vmware_results.instance.hw_name}}"
+    vmware_vm_power: "{{ vmware_results.instance.hw_power_status }}"
+    vmware_vm_nics: "{{ vmware_results.instance.hw_interfaces }}"
+    vmware_vm_nics_length: "{{ vmware_results.instance.hw_interfaces | length }}"
+    vmware_vm_cluster: "{{ vmware_results.instance.hw_cluster }}"
+    vmware_vm_esx_host: "{{ vmware_results.instance.hw_esxi_host }}"
+    vcenter: "{{ vcenter }}"
+  when: >
+    vmware_results is defined
+
+- name: debugging newly created variables
+  debug:
+    msg:
+    - "vmware_vm_name: {{ vmware_vm_name}}"
+    - "vmware_vm_power: {{ vmware_vm_power }}"
+    - "vmware_vm_nics: {{ vmware_vm_nics }}"
+    - "vmware_vm_nics_length: {{ vmware_vm_nics_length }}"
+    - "vmware_vm_cluster: {{ vmware_vm_cluster }}"
+    - "vmware_vm_esx_host: {{ vmware_vm_esx_host }}"
+    - "vcenter: {{ vcenter }}"
+  when: >
+    vmware_results is defined
+
+- name: Debug how many detected
+  debug:
+    msg:
+    - "vmware_detected: {{ vmware_detected }}"
+
+- name: Resetting found_vmware for next loop
+  set_fact:
+    found_vmware: 0
+
+- name: Debugging found_vmware and detected
+  debug:
+    msg:
+    - "vmware_detected: {{ vmware_detected }}"
+    - "found_vmware: {{ found_vmware }}"
+#    - "vcenter: {{ vcenter }}"
+
+
+# need to store the vcenter found in a variable
+
+# need to add in a set_fact on:
+# 1. vm UUID
+# 2. vm ip address
+# 3. dns?
+# 4. powerstate
+#

@@ -1,0 +1,16 @@
+---
+
+- name:
+  vmware_guest_find:
+    hostname: "{{ vcenter }}"
+    username: "{{ vcenter_user }}"
+    password: "{{ vcenter_pass }}"
+    validate_certs: False
+    name: "{{ vm_name }}"
+  delegate_to: localhost
+  register: vm_facts
+
+- name: debug vm_facts
+  debug:
+    msg:
+    - "vm_facts: {{ vm_facts }}"

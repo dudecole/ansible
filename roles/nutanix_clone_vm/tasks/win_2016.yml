@@ -1,0 +1,330 @@
+---
+
+- name: assigning Nutanix variables
+  set_fact:
+    base_url: "https://{{ cluster_ip }}:{{ nutanix_port }}/PrismGateway/services/rest/v2.0"
+    upload_base_url: "https://{{ cluster_ip }}:{{ nutanix_port }}"
+    username: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    vm_uuid: "{{ win2016_uuids[cluster_name] }}"
+    storage_container: "{{ storage_containers[cluster_name] }}"
+
+- name: Create {{ datacenter }} Prod Nutanix VM 2016
+  debug:
+      msg:
+      - "OS type: {{ vm_os }}"
+      - "Environtment: {{ vm_env }}"
+      - "Nutanix user: {{ nutanix_user }}"
+      - "VmName: {{ vm_name }}"
+      - "Memory MB: {{ vm_memory }}"
+      - "CPU: {{ vm_cpu }}"
+      - "Datacenter: {{ datacenter}}"
+      - "IP address: {{ ip_address }}"
+      - "Gateway: {{ gateway }}"
+      - "Domain: {{ domain }}"
+      - "storage_container: {{ storage_container }}"
+      - "vlan_uuid: {{ vlan_uuid }}"
+      - "template_uuid: {{ vm_uuid }}"
+
+- name: create VM
+  uri:
+    url: "{{ base_url }}/vms/{{ vm_uuid }}/clone"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    body:
+      spec_list:
+      - memory_mb: "{{ vm_memory }}"
+        categories: "{{ new_vm_categories }}"
+        name: "{{ vm_name }}"
+        num_cores_per_vcpu: 1
+        num_vcpus: "{{ vm_cpu }}"
+        override_network_config: true
+    body_format: json
+  register: command_result
+
+- name: debug the create vm register - command_result
+  debug:
+    msg: "vm-create register - command_result: {{ command_result }}"
+
+- name: setting fact of task_uuid via command_result.json.task_uuid k,v pair
+  set_fact:
+    task_uuid: "{{ command_result.json.task_uuid }}" #" #|from_json)['task_uuid']}}"
+
+- name: debug task uuid
+  debug:
+    msg: "{{task_uuid}}"
+
+- name: get VM task
+  uri:
+    url: "{{ base_url }}/tasks/{{ task_uuid }}"
+    validate_certs: no
+    force_basic_auth: yes
+    method: GET
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+  register: task_result
+
+- name: debugging VM task variable
+  debug:
+    msg: "{{ task_result }}"
+
+- name: setting fact of subtask
+  set_fact:
+    new_vm_taskid: "{{ (task_result.content|from_json)['subtask_uuid_list'][0] }}"
+
+- name: debug new_vm_taskid fact
+  debug:
+    msg: "{{ new_vm_taskid }}"
+
+- name: Poll for task new_vm_taskid
+  uri:
+    url: "{{ base_url }}/tasks/poll"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      completed_tasks:
+      - "{{ new_vm_taskid }}"
+    body_format: json
+  register: new_vm_task_id_poll
+
+- name: set fact VM uuid
+  set_fact:
+    new_vm_uuid: "{{ (new_vm_task_id_poll.content|from_json)['completed_tasks_info'][0]['entity_list'][2]['entity_id'] }}"   #newer template idenity
+
+- name: pause a few seconds
+  pause:
+    seconds: 5
+
+- name: create NIC on vlan
+  uri:
+    url: "{{ base_url }}/vms/{{ new_vm_uuid }}/nics"  #dude test template
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      spec_list:
+      - network_uuid: "{{ vlan_uuid }}"
+    body_format: json
+  register: command_result
+
+# - name: debugging the command result variable
+  # debug:
+    # msg: "Return Code: {{ command_result.status }}"
+
+- name: create image
+  uri:
+    url: "{{ base_url }}/images"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      name: "{{ vm_name }}-sysprep"
+      image_type: ISO_IMAGE
+    body_format: json
+  register: create_image
+
+# - name: debug create_image
+  # debug:
+    # msg: "{{ (create_image.content|from_json)['task_uuid'] }}"
+
+- name: set fact new image task uuid
+  set_fact:
+    new_image_task_uuid: "{{ (create_image.content|from_json)['task_uuid'] }}"
+
+- name: Poll for task new_image_task_uuid
+  uri:
+    url: "{{ base_url }}/tasks/poll"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      completed_tasks:
+      - "{{ new_image_task_uuid }}"
+    body_format: json
+  register: image_task_complete
+
+- name: set new_image_entity_uuid
+  set_fact:
+    new_image_uuid: "{{ (image_task_complete.content|from_json)['completed_tasks_info'][0]['entity_list'][0]['entity_id'] }}"
+
+- name: upload image iso from local drive
+  command: 'curl -i -k -u "{{ nutanix_user }}":"{{ nutanix_pw }}" -X PUT -H "X-Nutanix-Destination-Container: "{{ storage_container }}"" -H "Content-Type: application/octet-stream" -H "Accept: application/json" -T {{ ansible_env.HOME }}/ix-ansible/roles/vm_customize/files/win/{{ vm_name }}-template.iso ""{{ upload_base_url }}"/api/nutanix/v0.8/images/"{{ new_image_uuid }}"/upload"'
+  register: iso_upload
+
+- name: setting pause to wait for upload
+  pause:
+    seconds: 2
+
+- name: get vm_disk_id
+  uri:
+    url: "{{ base_url }}/images/{{ new_image_uuid }}"
+    validate_certs: no
+    force_basic_auth: yes
+    method: GET
+    status_code: 200
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+  register: new_image_info
+
+- name: debugging the register of new_image_info
+  debug:
+    msg: "{{ (new_image_info.content|from_json) }}"
+
+- name: set fact VM disk uuid
+  set_fact:
+    new_vm_disk_uuid: "{{ (new_image_info.content|from_json)['vm_disk_id'] }}"
+
+- name: debugging new_vm_disk_uuid
+  debug:
+    msg: "Here is the new_vm_disk_uuid: {{ new_vm_disk_uuid }}"
+
+- name: setting pause to stop
+  pause:
+    seconds: 1
+
+- name: create cdrom from image
+  uri:
+    url: "{{ base_url }}/vms/{{ new_vm_uuid }}/disks/attach"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      vm_disks:
+      - disk_address:
+          device_bus: IDE
+        is_cdrom: true
+        is_empty: false
+        vm_disk_clone:
+          disk_address:
+            vmdisk_uuid: "{{ new_vm_disk_uuid }}"
+        # storage_container_uuid: "{{ storage_container }}"
+    body_format: json
+
+- name: delete image
+  uri:
+    url: "{{ base_url }}/images/{{ new_image_uuid }}"
+    validate_certs: no
+    force_basic_auth: yes
+    method: DELETE
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Accept: "application/json"
+  register: delete_image
+
+- name: Poll for task delete_image
+  uri:
+    url: "{{ base_url }}/tasks/poll"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      completed_tasks:
+      - "{{ (delete_image.content|from_json)['task_uuid'] }}"
+    body_format: json
+  register: delete_task_complete
+
+- name: set VM timezone and description
+  uri:
+    url: "{{ base_url }}/vms/{{ new_vm_uuid }}"
+    validate_certs: no
+    force_basic_auth: yes
+    method: PUT
+    status_code: 200
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+       description: "{{ snow_requester_email }} - {{ vm_os }}; {{ snow_requester_fname }} {{ snow_requester_lname }}"
+       timezone: "{{ hw_time_zone }}"
+    body_format: json
+
+- pause:
+    seconds: 5
+
+- name: start VM
+  uri:
+    url: "{{ base_url }}/vms/{{ new_vm_uuid }}/set_power_state"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ username }}"
+    password: "{{ password }}"
+    return_content: yes
+    body:
+        transition: 'ON'
+    body_format: json
+  register: start_result
+
+- name: Return status
+  debug:
+    msg: "{{ (start_result.content|from_json) }}"
+
+# - name: pause for coffee
+  # pause:
+    # seconds: 45
+
+
+
+

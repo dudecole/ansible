@@ -1,0 +1,32 @@
+---
+- name: playbook to get clusters
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    cluster_pattern: "{{ nutanix_new_vm_cluster_pattern }}"
+    vm: "{{ vm_name }}"
+    vm_memory: "{{ vm_memory }}"
+    max_memory: "{{ max_memory }}"
+    action: get_cluster
+  register: result
+
+- name: debug result variable
+  debug:
+    msg:
+    - "result: {{ result }}"
+
+- name: assigning variables
+  set_fact:
+    cluster_name: "{{ result.meta.recommended_cluster.cluster_name }}"
+    cluster_uuid: "{{ result.meta.recommended_cluster.cluster_uuid }}"
+    cluster_ip: "{{ result.meta.recommended_cluster.cluster_ip }}"
+    nutanix_cluster: "{{ result.meta.recommended_cluster.cluster_name }}"
+
+- name: debugging cluster_returned
+  debug:
+    msg:
+    - "cluster_name: {{ cluster_name }}"
+    - "cluster_uuid: {{ cluster_uuid }}"
+    - "cluster_ip: {{ cluster_ip }} "

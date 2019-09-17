@@ -1,0 +1,21 @@
+--- # check if VM exists before cloning
+
+- name: set vm name when vm_name is defined
+  set_fact:
+    vm: "{{ vm_name }}"
+  when: vm_name is defined
+
+- name: Check to see if VM exists in prism central
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    vm: "{{ vm }}"
+    action: get_vm
+  register: result
+
+- name: debugging result
+  debug:
+    msg:
+    - "here is the result {{ result }}"

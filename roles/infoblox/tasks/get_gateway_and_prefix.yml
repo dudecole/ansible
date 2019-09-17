@@ -1,0 +1,77 @@
+---
+# this requires the following variables:
+# 1. 'network' - 'X.X.X.X/24' format
+# 2. 'infoblox_host' - in the vars file
+# 3. 'infoblox_user' - in the vault file
+# 4. 'infoblox_pw' - in the vault file
+
+
+- name: debug network variable
+  debug:
+    msg:
+    - "Network: {{ network }}"
+
+- name: set without_last_octet and prefix
+  set_fact:
+    without_last_octet: "{{ network.split('.')[:3] | join('.') }}"
+    prefix: "{{ network.split('/')[1] }}"
+
+- name: debug network variable
+  debug:
+    msg:
+    - "without_last_octet: {{ without_last_octet }}"
+    - "prefix: {{ prefix }}"
+
+- name: set gateway_search_string - 'gw-xx.xx.xxx.0'
+  set_fact:
+    gateway_search_string: "gw-{{ without_last_octet }}.0"
+
+- name: debug variables
+  debug:
+    msg:
+    - "without_last_octet: {{ without_last_octet }}"
+    - "gateway_search_string: {{ gateway_search_string }}"
+
+- name: lookup Host record for - gateway_search_string
+  set_fact:
+    gateway_host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': gateway_search_string }) }}"
+
+- name: fail when '_ref' not in gateway_host_record
+  fail:
+    msg: "NO GATEWAY RECORD FOUND"
+  when: '"_ref" | string not in gateway_host_record'
+
+- name: debug gateway address
+  debug:
+    msg:
+    - "gateway_host_record: {{ gateway_host_record }}"
+
+- name: set gateway address
+  set_fact:
+    gateway: "{{ gateway_host_record['ipv4addrs'][0]['ipv4addr'] }}"
+
+- name: debug gateway address
+  debug:
+    msg:
+    - "gateway: {{ gateway }}"
+
+- name: task to get network
+  mod_infoblox:
+    action: get_netmask
+    subnet: "{{ network }}"
+    ib_host: "{{ infoblox_host }}"
+    ib_user: "{{ infoblox_user }}"
+    ib_pw: "{{ infoblox_pw }}"
+  register: netmask_result
+
+- name: set fact of the netmask
+  set_fact:
+    netmask: "{{ netmask_result.meta }}"
+
+- name: debugging the variable 'result'
+  debug:
+    msg:
+    - "netmask: {{ netmask }}"

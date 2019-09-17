@@ -1,0 +1,56 @@
+---
+# this requires the following variables:
+# 1. 'vm_name'
+# 2. 'infoblox_host'
+# 3. 'infoblox_user'
+# 4. 'infoblox_pw'
+
+- name: fetch the host record if it exists.
+  set_fact:
+    host_record: "{{ lookup('nios', 'record:host', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': vm_name }) }}"
+- name: View host record variable
+  debug:
+    msg: "{{ host_record }}"
+
+- name: Fail if host exists
+  fail:
+    msg: "Host already exists: {{ host_record._ref }}"
+  when: "'_ref' in host_record"
+
+
+- name: fetch the A record if it exists.
+  set_fact:
+    a_record: "{{ lookup('nios', 'record:a', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw },
+                                               filter={'name~': vm_name}) }}"
+
+- name: View A record variable
+  debug:
+    msg: "{{ a_record }}"
+
+- name: Fail if A record exists.
+  fail:
+    msg: "A record for host already exists: {{ a_record._ref }}"
+  when: "'_ref' in a_record"
+
+
+- name: fetch the PTR record.
+  set_fact:
+    ptr_record: "{{ lookup('nios', 'record:ptr', provider={'host':infoblox_host,
+                                                         'username':infoblox_user,
+                                                         'password':infoblox_pw},
+                                                          filter={'ptrdname~': vm_name}) }}"
+
+- name: debug ptr_record variable
+  debug:
+    msg:
+    - "ptr_record {{ ptr_record }}"
+
+- name: Fail if PTR record exists.
+  fail:
+    msg: "PTR record for host already exists: {{ ptr_record._ref }}"
+  when: "'_ref' in ptr_record"

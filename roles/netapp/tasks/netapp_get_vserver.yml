@@ -1,0 +1,53 @@
+---
+
+- name: netapp_get_vserver.yml
+  debug:
+    msg:
+    - "vserver_domain: {{ vserver_domain }}"
+    - "share_type: {{ share_type }}"
+    - "cluster_ip: {{ cluster_ip }}"
+
+- name: look for vservers that are members of the {{ vserver_domain}} domain
+  na_ontap_command:
+    hostname: "{{ cluster_ip }}"
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    command: ['vserver', '{{ share_type }}', 'show', '-domain', '{{ vserver_domain }}']
+    https: true
+    validate_certs: false
+  register: vserver_string
+
+- name: parse vserve_string - put in dictionary
+  parse_ontap_cli:
+    action: create_vserver_list
+    vserver_string: "{{ vserver_string }}"
+  register: vserver_list
+
+- name: debug the vserver dictionary
+  debug:
+    msg: "{{ vserver_list.meta }}"
+
+- name: parse enviroment from vserver list of dicts and search for a vserver
+  parse_ontap_cli:
+    action: search_vserver
+    business_unit: "{{ business_unit }}"
+    environment: "{{ netapp_env }}"
+    vserver_string: "{{ vserver_string }}"
+  register: found_vserver
+
+- name: debug parsed found_vserver register
+  debug:
+    msg: "{{ found_vserver.meta }}"
+
+- name: setting the vserver volume
+  set_fact:
+    vserver: "{{ found_vserver.meta.vserver }}"
+
+- name: debug acutal vserver stuff this time
+  debug:
+    msg:
+    - "vserver: {{ vserver }}"
+
+- name: setting the vserver volume
+  set_fact:
+    vserver_no_hiphen: "{{ vserver | regex_replace('-', '') }}"

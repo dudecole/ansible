@@ -1,0 +1,35 @@
+---
+
+- name: debug required variables
+  debug:
+    msg:
+    - "vm_name: {{ vm_name }}"
+    - "notes: {{ notes }}"
+    - "vcenter: {{ vcenter }}"
+    - "datacenter: {{ datacenter }}"
+
+- name: Force poweroff of VM
+  vmware_guest:
+    hostname: "{{ vcenter }}"
+    username: "{{ vcenter_user }}"
+    password: "{{ vcenter_pass }}"
+    datacenter: "{{ datacenter }}"
+    name: "{{ vm_name }}"
+    state: poweredoff
+    validate_certs: no
+  delegate_to: localhost
+  register: vm_results
+
+- name: fail when 'instance' not in vm_results
+  fail:
+    msg: >
+      No instance in vm_results register -
+      VM NOT POWERED OFF!
+  when: '"instance" not in vm_results'
+
+- name: debug vm_results
+  debug:
+    msg:
+    - "vm_results: {{ vm_results }}"
+  when: '"instance" in vm_results'
+

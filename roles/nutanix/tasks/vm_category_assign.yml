@@ -1,0 +1,26 @@
+---
+
+- name: vm_category_assign.yml
+  debug:
+    msg:
+    - "vm: {{ vm_name }}"
+    - "prism_central_addr: {{ central_addr }}"
+    - "category_name: {{ category_name }}"
+    - "category_value: {{ category_value }}"
+
+- name: task to assign vm to category
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    category_name: "{{ category_name }}"
+    category_value: "{{ category_value }}"
+    vm: "{{ vm_name }}"
+    action: update_vm_category
+  register: category_result
+
+- name:
+  debug:
+    msg:
+    - "category_result: {{ category_result }}"

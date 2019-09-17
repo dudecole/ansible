@@ -1,0 +1,60 @@
+---
+############################################
+# get all vms in 2-delete
+############################################
+- name: find Vms in the 1-decommission category and 2-delete sub-cat
+  include_role:
+    name: nutanix
+    tasks_from: find_vms_in_category.yml
+  vars:
+    category_value: "2-delete"
+
+- name: debug the 2-delete vms returned
+  debug:
+    msg:
+    - "VM Name: {{ item.status.name }}"
+    - "vm_uuid: {{ item.metadata.uuid }}"
+    - "categories: {{ item.metadata.categories }}"
+  with_items: "{{ category_result.meta.entities }}"
+
+############################################
+# with items - is using the 'category_result' from above
+# delete VMs now.
+############################################
+- name: remove VMs that are in the 2-delete sub cagetory
+  include_role:
+    name: nutanix
+    tasks_from: delete_vm.yml
+  vars:
+    vm_name: "{{ item.status.name }}"
+  with_items: "{{ category_result.meta.entities }}"
+
+############################################
+# Get new category_results from 1-sidelined sub-category
+############################################
+- name: find the vms in 1-sidelined sub-cat first
+  include_role:
+    name: nutanix
+    tasks_from: find_vms_in_category.yml
+  vars:
+    category_value: "1-sidelined"
+
+- name: debug the 1-sidelined vms returned
+  debug:
+    msg:
+    - "VM Name: {{ item.status.name }}"
+    - "vm_uuid: {{ item.metadata.uuid }}"
+    - "categories: {{ item.metadata.categories }}"
+  with_items: "{{ category_result.meta.entities }}"
+
+############################################
+# move vms into the 2-delete
+############################################
+- name: move VMs that are in the 1-sidelined to 2-delete
+  include_role:
+    name: nutanix
+    tasks_from: vm_category_assign.yml
+  vars:
+    category_value: "2-delete"
+    vm_name: "{{ item.status.name }}"
+  with_items: "{{ category_result.meta.entities }}"

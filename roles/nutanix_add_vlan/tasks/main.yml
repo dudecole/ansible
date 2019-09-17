@@ -1,0 +1,44 @@
+# add a vlan to a nutanix element (cluster)
+---
+- name: assigning vlan variable
+  set_fact:
+    vlan_split: "{{ vlan.split('_') }}"
+  when:
+  - '"_" in vlan'
+  - vlan is defined
+
+- name: assigning vlan index 1 to vlan
+  set_fact:
+    vlan_id: "{{ vlan_split[1] }}"
+  when:
+  - '"_" in vlan'
+  - vlan is defined
+
+- name: assigning vlan to vlan variable
+  set_fact:
+    vlan_id: "{{ vlan }}"
+  when:
+  - '"_" not in vlan'
+  - vlan is defined
+
+- name: debug variables required for the module
+  debug:
+    msg:
+    - "vlan_id: {{ vlan_id }}"
+    - "cluster_ip: {{ cluster_ip }}"
+
+- name: add vlan to nutanix cluster
+  mod_nutanix:
+    action: add_vlan
+    element_addr: "{{ cluster_ip }}"
+    port: "{{ nutanix_port }}"
+    vlan: "{{ vlan_id }}" # this is only the number part of the vlan (string type) '1182'
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+  register: result
+
+- name: debug the return of adding vlan vlan_id
+  debug:
+    msg:
+    - "here is the result: {{ result }}"
+

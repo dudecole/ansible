@@ -1,0 +1,42 @@
+---
+
+- name: netapp_get_aggregate.yml
+  debug:
+    msg:
+    - "volume_size: {{ volume_size }}"
+    - "size_unit: {{ size_unit }}"
+    - "cluster_ip: {{ cluster_ip }}"
+
+- name: run command to get aggregate with best capacity
+  na_ontap_command:
+    hostname: "{{ cluster_ip }}"
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+    command: ['aggr', 'show', '-storage-type', 'hdd', '-root','false','-availsize', '>{{ volume_size }}{{ size_unit }}']
+#    aggr show -storage-type hdd -root false -availsize > {{ vol_size }}TB
+    https: true
+    validate_certs: false
+  register: aggregate_return
+
+- name: parse data from aggregate_return
+  parse_ontap_cli:
+    action: get_aggregate
+    aggr_string: "{{ aggregate_return }}"
+  register: parsed_aggr_list
+
+- name: loop through each of the aggr and debug each one.
+  debug:
+    msg: "{{ parsed_aggr_list.meta }}"
+
+- name: aggregate with lowest used space should be the first index '0'
+  set_fact:
+    aggregate: "{{ parsed_aggr_list.meta.0 }}"
+
+- name: debug newly created aggregate variable
+  debug:
+    msg:
+    - "aggregate: {{ aggregate }}"
+
+# will hard code HDD for now.
+# aggr show -storage-type hdd -root false -availsize > {{ vol_size }}TB
+# choose the 'Used%' with the lowest number

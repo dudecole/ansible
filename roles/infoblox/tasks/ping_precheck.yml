@@ -1,0 +1,40 @@
+---
+# IP address is required
+# this comes after the get_business_network.yml
+- name: ping an IP address
+  command: ping -c 5 {{ ip_address }}
+  changed_when: true
+  delegate_to: localhost
+  register: ping_response
+  ignore_errors: yes
+
+- name: setting fact of successful_find
+  set_fact:
+    successful_find: 1
+  when: '"msg" in ping_response'
+
+- name: set variable for return
+  set_fact:
+    ping_show: "{{ ping_response.stdout.split('\n') }}"
+    successful_find: 0
+  when: "'msg' not in ping_response"
+
+- name: show ping_show variable
+  debug:
+    msg:
+    - "{{ ping_show }}"
+  when: successful_find == 0
+
+- name: fail when successful_find = 0
+  fail:
+    msg: "IP ALREADY IN USE!"
+  when:
+  - successful_find == 0
+
+- name: debug the return
+  debug:
+    msg:
+    - "ALL SYSTEMS GO - IP NOT IN USE:"
+    - "ping message: {{ ping_response.msg }}"
+    - "successful_find: {{ successful_find }}"
+  when: successful_find == 1

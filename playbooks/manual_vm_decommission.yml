@@ -1,0 +1,33 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars_files:
+  - "~/ansible/group_vars/{{env}}-vault.yml"
+  - "~/ansible/group_vars/{{env}}-vars.yml"
+
+  vars_prompt:
+  - name: vm_name
+    prompt: What is the vmname? 
+    private: no
+
+  - name: vm_fqdn
+    prompt: What is the fqdn of the vm? It's kind of important. 
+    private: no
+
+  vars:
+    central_addr: "{{ central_addr }}"
+    nutanix_port: '{{ nutanix_port }}'
+    fqdn: "{{ vm_fqdn }}"
+
+  pre_tasks:
+
+    - fail:
+        msg: "VM Name is empty"
+      when: vm_name == ""
+
+  roles:
+  - vm_decommission
+  - infoblox_decommission
+  - solarwinds_delete_node

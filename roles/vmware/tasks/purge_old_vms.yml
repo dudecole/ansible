@@ -1,0 +1,27 @@
+---
+
+- name: execute Purge-Folder.PS1 on POSH Server
+  win_shell: >
+      C:\ix-powershell\powercli\vm\purge-folder.ps1
+      -server '{{ vcenter.address }}'
+      -user '{{ vcenter_user }}'
+      -password '{{ vcenter_pass }}'
+      -delete_folder '{{ delete_folder }}'
+      -sideline_folder '{{ sidelined_folder }}'
+      -virtual_email_group '{{ virtual_email_group }}'
+  register: vcenter_output
+  changed_when: False
+
+- name: Failure - Printing stderr_lines
+  fail:
+    msg: "output variable: {{ vcenter_output.stderr_lines }}"
+  when: vcenter_output.stderr_lines | length > 0
+
+- name: Parse out the newline '\n' character and put in list
+  debug:
+    msg: "{{ (vcenter_output.stdout | regex_replace('\\n$', '')).split('\n') }}"
+    # rstrip
+  when: vcenter_output.stderr_lines | length <= 0
+  changed_when: vcenter_output.stderr_lines | length <= 0
+
+

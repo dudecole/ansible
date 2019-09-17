@@ -1,0 +1,103 @@
+---
+- name: query nutanix for VM UUID
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    vm: "{{ vm_name }}"
+    action: query_vm_details
+  register: result
+
+- name: debugging result
+  debug:
+    msg:
+    - "here is the result {{ result }}"
+
+- name: get cluster ip address
+  uri:
+    url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/clusters/{{ result['meta'][0]['spec']['cluster_reference']['uuid'] }}"
+    method: GET
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    force_basic_auth: yes
+    headers:
+      Accept: "application/json"
+    status_code: 200
+    return_content: yes
+    validate_certs: no
+  register: cluster_details_result
+
+- name: debugging cluster details result
+  debug:
+    msg:
+    - "here is the cluster details result {{ cluster_details_result }}"
+
+- name: set fact task result
+  set_fact:
+    vm_uuid: "{{ result['meta'][0]['metadata']['uuid'] }}"
+    cluster_ip: "{{ (cluster_details_result['content']|from_json)['spec']['resources']['network']['external_ip'] }}"
+
+- name: set base url
+  set_fact:
+    base_url: "https://{{ cluster_ip }}:{{ nutanix_port }}/PrismGateway/services/rest/v2.0"
+
+- name: shutdown VM
+  uri:
+    url: "{{ base_url }}/vms/{{ vm_uuid }}/set_power_state/"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    body:
+        transition: "OFF"
+    body_format: json
+  register: start_result
+
+- name: pause a few seconds
+  pause:
+    seconds: 45
+
+- name: resize VM
+  mod_nutanix:
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    central_addr: "{{ central_addr }}"
+    port: "{{ nutanix_port }}"
+    vm: "{{ vm_name }}"
+    vm_memory: "{{ vm_memory }}"
+    vm_cpu: "{{ vm_cpu }}"
+    max_memory: "{{ max_memory }}"
+    action: resize_vm
+  register: result
+
+- name: debug result variable
+  debug:
+    msg:
+    - "result: {{ result }}"
+
+- name: pause a few seconds
+  pause:
+    seconds: 5
+
+- name: start VM
+  uri:
+    url: "{{ base_url }}/vms/{{ vm_uuid }}/set_power_state/"
+    validate_certs: no
+    force_basic_auth: yes
+    method: POST
+    status_code: 201
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    return_content: yes
+    body:
+        transition: "ON"
+    body_format: json
+  register: start_result
+
+- name: pause a few seconds
+  pause:
+    seconds: 5

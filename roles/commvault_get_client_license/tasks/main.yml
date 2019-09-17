@@ -1,0 +1,38 @@
+---
+
+- name: debug variables before running
+  debug:
+    msg:
+    - "client_name: {{ client_name }}"
+    - "commserve: {{ commserve }}"
+
+- name: test out the mod_commvault.py file
+  mod_commvault:
+    action: get_client_license
+    client: "{{ client_name }}"
+    username: "{{ commvault_user }}"
+    password: "{{ commvault_pass }}"
+    commserve: "{{ commserve }}"
+  register: search_results
+
+- name:
+  debug:
+    msg:
+    - "search_results: {{ search_results }}"
+
+- name: setting facts from search_results
+  set_fact:
+    license_type: "{{ search_results.meta.license_type }}"
+    license_name: "{{ search_results.meta.license_name}}"
+    app_type: "{{ search_results.meta.app_type }}"
+    platform_type: "{{ search_results.meta.platform_type }}"
+
+
+- name:
+  debug:
+    msg:
+    - "license_type: {{ license_type }}"
+    - "license_name: {{ license_name}}"
+    - "app_type: {{ app_type }}"
+    - "platform_type: {{ platform_type }}"
+

@@ -1,0 +1,39 @@
+---
+
+- name: debug variables before running
+  debug:
+    msg:
+    - "client_name: {{ client_name }}"
+    - "commserve: {{ commserve }}"
+
+- name: running a 'license get' on this first, then use a 'when' for removing license
+  mod_commvault:
+    action: get_client_license
+    client: "{{ client_name }}"
+    username: "{{ commvault_user }}"
+    password: "{{ commvault_pass }}"
+    commserve: "{{ commserve }}"
+  register: license_results
+
+- name: debug get_license_results
+  debug:
+    msg:
+    - "license_found: {{ license_results.meta }}"
+
+- name: Unlicense_client
+  mod_commvault:
+    action: unlicense_client
+    client: "{{ client_name }}"
+    username: "{{ commvault_user }}"
+    password: "{{ commvault_pass }}"
+    commserve: "{{ commserve }}"
+  register: unlicense_results
+  when: license_results.meta != False
+
+- name:
+  debug:
+    msg:
+    - "unlicense_results: {{ unlicense_results }}"
+  when: license_results.meta != False
+
+

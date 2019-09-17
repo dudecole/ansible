@@ -1,0 +1,91 @@
+---
+# filters on the categories to clean up the BU and evironment are below.
+# The filters take any stretch of spaces or punctuation and just replaces it
+# with a dash. This eases querying for them later, because if there are things
+# like equals signs in the business unit name the query tool may interpret it
+# and break.  It also changes '&' to '-and-' in the new name and trims any
+# wierd stuff off the end of the name.  It basically makes it url-safe :)
+#
+# Example: 
+# "IS&T Engineering & Operations" -> "Is-and-t-engineering-and-operations"
+# "Jolly Roger   " -> "BU-Jolly-Roger"
+# "You&I==" -> "BU-You-and-I"
+- name: set vm categorization variables
+  set_fact:
+    new_vm_categories:
+      business-unit: "{{ business_unit | regex_replace('&', ' and ') | regex_replace('[\\W_]+', '-') | regex_replace('-+$', '') | lower }}"
+      vm-environment: "{{ vm_env | regex_replace('&', ' and ') | regex_replace('[\\W_]+', '-') | regex_replace('-+$', '') | lower }}"
+
+- name: check for existence of categories
+  uri:
+    method: POST
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+    url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/categories/list"
+    return_content: true
+    body:
+      kind: category
+      filter: "name=={{ item }}"
+  with_items: "{{ new_vm_categories.keys() }}"
+  register: categories_existence_check
+
+- name: create categories if they don't exist
+  uri:
+    method: PUT
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    force_basic_auth: true
+    validate_certs: false
+    url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/categories/{{ item.item }}"
+    return_content: true
+    body:
+      name: "{{ item.item }}"
+      api_version: "3.1.0"
+      description: "Auto-generated category based on VM creation automation."
+  changed_when: true
+  when: >
+    item.json.metadata.total_matches >= 0
+  with_items: "{{ categories_existence_check.results }}"
+  register: create_categories_results
+
+- name: check for existence of category values
+  uri:
+    method: POST
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    force_basic_auth: true
+    validate_certs: false
+    status_code: 200
+    url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/categories/{{ item.key }}/list"
+    return_content: true
+    body:
+      kind: category
+      filter: "value=={{ item.value }}"
+  with_items: "{{ new_vm_categories | dict2items }}"
+  register: category_values_existence_check
+
+- name: create category values if they don't exist
+  uri:
+    method: PUT
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    force_basic_auth: true
+    validate_certs: false
+    url: "https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/categories/{{ item.item.key }}/{{ item.item.value }}"
+    return_content: true
+    body:
+      value: "{{ item.item.value }}"
+      api_version: "3.1.0"
+      description: "Auto-generated category value based on VM creation automation."
+  changed_when: true
+  when: >
+    item.json.metadata.total_matches >= 0
+  with_items: "{{ category_values_existence_check.results }}"
+  register: create_category_values_results

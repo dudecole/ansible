@@ -1,0 +1,27 @@
+---
+
+- name: netapp_add_volume.yml
+  debug:
+    msg:
+    - "vserver: {{ vserver }}"
+    - "vserver_no_hiphen: {{ vserver_no_hiphen }}"
+    - "volume_name: {{ volume_name }}"
+    - "aggregate: {{ aggregate }}"
+    - "volume_size: {{ vol_size }}"
+    - "size_unit: {{ size_unit }}"
+    - "cluster_ip: {{ cluster_ip }}"
+
+
+- name: Create volume
+  na_ontap_volume:
+    state: present
+    name: "{{ vserver_no_hyphen }}_{{ business_unit }}_{{ volume_name}}"
+    is_infinite: False
+    aggregate_name: "{{ aggregate }}"
+    size: "{{ volume_size }}"
+    size_unit: "{{ size_unit }}"
+    junction_path: "/{{ volume_name }}"  #this is where the folder is mounted
+    vserver: "{{ vserver }}"
+    hostname: "{{ cluster_ip }}"
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"

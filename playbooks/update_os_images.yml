@@ -1,0 +1,20 @@
+---
+- hosts: cvm-{{ env }}
+  connection: ssh
+  gather_facts: true
+
+  vars_files:
+  - ~/ansible/group_vars/{{env}}-vault.yml
+  - ~/ansible/group_vars/{{env}}-vars.yml
+
+  vars:
+    ansible_user: "{{ ansible_cvm_user }}"
+    ansible_password: "{{ ansible_cvm_pw }}"
+
+  tasks:
+  - include_role:
+      name: nutanix_upload_images
+    with_items:
+      - "{{ os_image_service.images }}"
+    loop_control:
+      loop_var: "mighty_mouse"

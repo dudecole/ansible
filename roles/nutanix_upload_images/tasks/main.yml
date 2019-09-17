@@ -1,0 +1,197 @@
+- name: run ACLI command on CVM to get image list
+  command: /usr/local/nutanix/bin/acli image.list
+  register: image_list
+
+- name: run ACLI command on CVM to get VM list
+  command: /usr/local/nutanix/bin/acli vm.list
+  register: vm_list
+
+- name: debug image list
+  debug:
+    msg:
+    - "{{ image_list.stdout_lines }}"
+    - "{{ vm_list.stdout_lines }}"
+
+- name: look for stuff
+  set_fact:
+    existing_images: "{{ image_list.stdout_lines | select('match', '^' + mighty_mouse.target_image_name + ' +([0-9A-Za-z_]+ +)?[0-9a-f-]+ *$') | list }}"
+    vms: "{{ vm_list.stdout_lines | select('match','^' + mighty_mouse.template_name + ' +[0-9a-f-]+ *$') | list }}"
+
+- name: debug variables just created
+  debug:
+    msg:
+    - "existing_images: {{ existing_images }}"
+    - "vms: {{ vms }}"
+
+- name: assess stuff
+  set_fact:
+    existing_images_count: "{{ existing_images | length }}"
+    vms_count: "{{ vms | length }}"
+
+- name: debug variables just created
+  debug:
+    msg:
+    - "existing_images_count: {{ existing_images_count }}"
+    - "vms_count: {{ vms_count }}"
+
+- name: die early if we can't find the VM
+  fail:
+    msg: "Couldn't find template `{{ mighty_mouse.template_name }}`, cannot continue."
+  when: >
+    vms_count == '0'
+
+- name: set fact by cleaning up whitespace and splitting on it - creating a list - length of 2 [0,1]
+  set_fact:
+    vm_name: "{{ (vms | first | regex_replace(' +', ' ') | regex_replace(' *$', '')).split(' ')[0] }}"
+    vm_uuid: "{{ (vms | first | regex_replace(' +', ' ') | regex_replace(' *$', '')).split(' ')[1] }}"
+
+- name: debug newly created fact
+  debug:
+    msg:
+    - "vm_name: {{ vm_name }}"
+    - "vm_uuid: {{ vm_uuid }}"
+
+- name: set moar facts
+  set_fact:
+    old_image_names: "{{ existing_images | map('regex_replace', '^(?P<imgname>[^ ]+) +((?P<imgtype>[^ ]+) +)?(?P<imguuid>[^ ]+) *$', '\\g<imgname>') | list }}"
+    old_image_uuids: "{{ existing_images | map('regex_replace', '^(?P<imgname>[^ ]+) +((?P<imgtype>[^ ]+) +)?(?P<imguuid>[^ ]+) *$', '\\g<imguuid>') | list }}"
+  when: >
+    existing_images_count != '0'
+
+- name: debug newly created fact
+  debug:
+    msg:
+    - "old_image_names: {{ old_image_names }}"
+    - "old_image_uuids: {{ old_image_uuids }}"
+  when: existing_images_count != '0'
+
+- name: rest call to delete the image from prism central
+  uri:
+    method: DELETE
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    url: https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/images/{{ item }}
+    validate_certs: false
+    force_basic_auth: true
+    status_code: 202
+  register: image_delete_result
+  when: >
+    existing_images_count != '0'
+  loop: "{{ old_image_uuids }}"
+
+- name: debug image_delete_result
+  debug:
+    msg:  "{{ image_delete_result }}"
+  when: >
+    existing_images_count != '0'
+
+#- name: delete image if it already exists
+#  command: /usr/local/nutanix/bin/acli image.delete {{ item[0] }}:{{ item[1] }}
+#  args:
+#    stdin: |
+#      yes
+#      yes
+#      yes
+#  register: old_image_delete
+#  when: >
+#    existing_images_count != '0'
+#  loop: "{{ old_image_names | zip(old_image_uuids) | list }}"
+#
+#- name: debug the old_image_delete register
+#  debug:
+#    msg:
+#    - "{{ old_image_delete }}"
+
+- name: sleeping for maybe 30 seconds...
+  pause:
+    seconds: 15
+  when: >
+    existing_images_count != '0'
+
+- name: upload vm disk of {{ mighty_mouse.template_name }} to the image service
+  command: /usr/local/nutanix/bin/acli image.create {{ mighty_mouse.target_image_name }} clone_from_vmdisk=vm:{{ vm_name }}:scsi.0
+  register: image_upload
+
+- name: sleeping for maybe 10 seconds... # JKz LOL GOTCHA I'm only gonna sleep 5 seconds
+  pause:
+    seconds: 5
+
+- name: debug register from image_upload
+  debug:
+    msg:
+    - "{{ image_upload }}"
+
+- name: run ACLI command on CVM to again get image list
+  command: /usr/local/nutanix/bin/acli image.list
+  register: image_list_again
+
+- name: debug register from image_upload
+  debug:
+    msg:
+    - "{{ image_list_again }}"
+
+- name: look for stuff
+  set_fact:
+    target_images_again: "{{ image_list_again.stdout_lines | select('match', '^' + mighty_mouse.target_image_name + ' +[0-9a-f-]+ *$') | list }}"
+
+- name: assess stuff
+  set_fact:
+    target_images_again_count: "{{ target_images_again | length }}"
+
+- name: debug variables just created
+  debug:
+    msg:
+    - "target_images_again: {{ target_images_again }}"
+    - "target_images_again_count: {{ target_images_again_count }}"
+
+- name: die early if we can't find the image we just made.
+  fail:
+    msg: "Couldn't find image `{{ mighty_mouse.target_image_name }}`, that we *just made*, cannot continue."
+  when: >
+    target_images_again_count == '0'
+
+- name: set fact by cleaning up whitespace and splitting on it - creating a list - length of 2 [0,1]
+  set_fact:
+    image_name: "{{ (target_images_again | first | regex_replace(' +', ' ') | regex_replace(' *$', '')).split(' ')[0] }}"
+    image_uuid: "{{ (target_images_again | first | regex_replace(' +', ' ') | regex_replace(' *$', '')).split(' ')[1] }}"
+
+- name: debugging newly created variables
+  debug:
+    msg:
+    - "image_name: {{ image_name }}"
+    - "image_uuid: {{ image_uuid }}"
+
+- name: Update Image type to kDiskImage
+  command: /usr/local/nutanix/bin/acli image.update image={{ image_uuid }} image_type=kDiskImage name={{ image_name }}
+  register: update_result
+
+- name:
+  debug:
+    msg:
+    - "update_result: {{ update_result.stdout_lines }}"
+
+- name: Migrate image
+  uri:
+    method: POST
+    body_format: json
+    user: "{{ nutanix_user }}"
+    password: "{{ nutanix_pw }}"
+    url: https://{{ central_addr }}:{{ nutanix_port }}/api/nutanix/v3/images/migrate
+    validate_certs: false
+    force_basic_auth: true
+    status_code: 202
+    body:
+      image_reference_list:
+        - kind: image
+          name: "{{ hostvars['cvm-'+env]['image_name'] }}"
+          uuid: "{{ hostvars['cvm-'+env]['image_uuid'] }}"
+      cluster_reference:
+        kind: cluster
+        name: "{{ os_image_service.cluster_name }}"
+        uuid: "{{ os_image_service.cluster_uuid }}"
+  register: command_result
+
+- name: debug command_result
+  debug:
+    msg:  "{{ command_result }}"
