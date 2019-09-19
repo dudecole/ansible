@@ -67,9 +67,3 @@ And here's a great how-to for setting it up:
 ## What If Something Goes Wrong
 
 Talk to: dudecole@outlook.com
-
-
-# Test Coverage
-
-
-## References
